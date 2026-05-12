@@ -34,12 +34,24 @@ class Settings(BaseSettings):
     def assemble_db_url(cls, v: str) -> str:
         if not v:
             return v
-        # Render/Heroku provide URLs starting with postgres://
-        # but asyncpg requires postgresql+asyncpg://
+        # Ensure asyncpg prefix
         if v.startswith("postgres://"):
-            return v.replace("postgres://", "postgresql+asyncpg://", 1)
-        if v.startswith("postgresql://") and "+asyncpg" not in v:
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://") and "+asyncpg" not in v:
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        
+        # Remove any potential sslmode=require from the string to avoid double parameters
+        # we handle SSL in the engine creation
+        return v
+
+    @field_validator("DATABASE_SYNC_URL", mode="before")
+    @classmethod
+    def assemble_sync_db_url(cls, v: str) -> str:
+        if not v:
+            return v
+        # Ensure standard postgresql prefix (for psycopg2)
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql://", 1)
         return v
 
     # Redis

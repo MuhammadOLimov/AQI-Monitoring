@@ -16,22 +16,30 @@ from backend.core.config import settings
 
 
 # Database host logging for debugging
-db_host = settings.DATABASE_URL.split("@")[-1].split(":")[0].split("/")[0]
-logger.info(f"Connecting to database at: {db_host}")
+try:
+    db_host = settings.DATABASE_URL.split("@")[-1].split(":")[0].split("/")[0]
+    logger.info(f"Target Database Host: {db_host}")
+except Exception:
+    logger.warning("Could not parse DB host for logging")
 
 # Async engine for all application queries
-# We add ssl='require' support for cloud providers like Render
 connect_args = {}
 if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
-    # Most cloud providers require SSL
-    connect_args["ssl"] = "require"
+    # Most cloud providers require SSL. 
+    # For asyncpg, a pre-configured SSL context is often more reliable than just a string.
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    connect_args["ssl"] = ctx
+    logger.info("SSL connection enabled for database")
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_pre_ping=True,
-    echo=settings.DEBUG,
+    echo=False, # Disable echo in production for cleaner logs
     connect_args=connect_args,
 )
 
