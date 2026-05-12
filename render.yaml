@@ -1,0 +1,46 @@
+services:
+  # ─── Backend API & Frontend ────────────────────────────────────────────────
+  - type: web
+    name: airwatch-api
+    env: docker
+    plan: free
+    region: frankfurt
+    dockerContext: .
+    dockerfilepath: Dockerfile
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: airwatch-db
+          property: connectionString
+      - key: DATABASE_SYNC_URL
+        fromDatabase:
+          name: airwatch-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: airwatch-redis
+          property: connectionString
+      - key: OPENWEATHER_API_KEY
+        sync: false # Buni Render dashboardida qo'lda kiritasiz
+      - key: SECRET_KEY
+        generateValue: true
+
+  # ─── Redis Cache ────────────────────────────────────────────────────────────
+  - type: redis
+    name: airwatch-redis
+    plan: free
+    region: frankfurt
+    ipAllowList: [] # Faqat ichki servislar uchun
+
+databases:
+  # ─── PostgreSQL Database ────────────────────────────────────────────────────
+  - name: airwatch-db
+    plan: free
+    region: frankfurt
+    databaseName: air_pollution_db
+    user: airwatch_user
