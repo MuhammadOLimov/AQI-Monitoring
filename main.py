@@ -36,9 +36,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Environment: {settings.APP_ENV}")
 
-    # Create database tables
-    await create_tables()
-    logger.info("Database initialized")
+    # Create database tables with retries (for cloud environments)
+    max_retries = 5
+    retry_delay = 5
+    for i in range(max_retries):
+        try:
+            await create_tables()
+            logger.info("Database initialized successfully")
+            break
+        except Exception as e:
+            if i == max_retries - 1:
+                logger.error(f"Failed to initialize database after {max_retries} attempts: {e}")
+                raise
+            logger.warning(f"Database connection attempt {i+1} failed. Retrying in {retry_delay}s... ({e})")
+            await asyncio.sleep(retry_delay)
 
     # Cleanup non-Uzbekistan cities and seed defaults
     async with AsyncSessionLocal() as db:
