@@ -1,0 +1,2046 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirWatch — Real-time Air Pollution Monitor</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Leaflet Heat plugin CSS -->
+  <style>
+    :root {
+      /* Dark theme */
+      --bg-primary: #0a0e1a;
+      --bg-secondary: #0f1629;
+      --bg-card: #131d35;
+      --bg-card-hover: #1a2540;
+      --bg-glass: rgba(19, 29, 53, 0.8);
+      --border: rgba(99, 179, 237, 0.12);
+      --border-bright: rgba(99, 179, 237, 0.3);
+      --text-primary: #e8f0fe;
+      --text-secondary: #8ba3cc;
+      --text-muted: #4d6a99;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.3);
+      --accent-hover: #60a5fa;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #8b5cf6;
+
+      /* AQI Colors */
+      --aqi-good: #00e400;
+      --aqi-moderate: #ffff00;
+      --aqi-sensitive: #ff7e00;
+      --aqi-unhealthy: #ff0000;
+      --aqi-very: #8f3f97;
+      --aqi-hazardous: #7e0023;
+
+      --radius: 12px;
+      --radius-lg: 20px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+      --shadow-glow: 0 0 30px rgba(59, 130, 246, 0.15);
+      --font-mono: 'Space Mono', monospace;
+      --font-sans: 'DM Sans', sans-serif;
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f0f4ff;
+      --bg-secondary: #e8eeff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f8faff;
+      --bg-glass: rgba(255, 255, 255, 0.9);
+      --border: rgba(59, 130, 246, 0.15);
+      --border-bright: rgba(59, 130, 246, 0.4);
+      --text-primary: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --shadow: 0 4px 24px rgba(0,0,0,0.1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+    ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+    /* ─── HEADER ─────────────────────────────────────────────────────── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .header-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .header-title {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 1px;
+    }
+
+    .header-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      max-width: 500px;
+    }
+
+    .search-box {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      transition: var(--transition);
+    }
+    .search-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .search-box input {
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      width: 100%;
+    }
+    .search-box input::placeholder { color: var(--text-muted); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 9px;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-ghost {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+    .btn-icon { padding: 8px; width: 38px; height: 38px; }
+
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+
+    .refresh-timer {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    /* ─── LAYOUT ─────────────────────────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      grid-template-rows: auto 1fr;
+      min-height: calc(100vh - 64px);
+    }
+
+    .sidebar {
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      height: calc(100vh - 64px);
+      position: sticky;
+      top: 64px;
+    }
+
+    .content {
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ─── SIDEBAR ─────────────────────────────────────────────────────── */
+    .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .city-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: var(--transition);
+      border: 1px solid transparent;
+    }
+    .city-item:hover { background: var(--bg-card); }
+    .city-item.active {
+      background: var(--bg-card);
+      border-color: var(--accent);
+    }
+
+    .city-aqi-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .city-info { flex: 1; min-width: 0; }
+    .city-name {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .city-meta { font-size: 11px; color: var(--text-muted); }
+
+    /* ─── TABS ────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 4px;
+      border: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      background: none;
+      color: var(--text-secondary);
+      transition: var(--transition);
+    }
+    .tab.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: var(--shadow);
+    }
+
+    /* ─── OVERVIEW STATS ─────────────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--accent);
+      opacity: 0;
+      transition: var(--transition);
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+    .stat-card:hover::before { opacity: 1; }
+
+    .stat-icon {
+      font-size: 24px;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ─── AQI GAUGE ──────────────────────────────────────────────────── */
+    .city-detail-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .aqi-gauge {
+      position: relative;
+      width: 140px;
+      height: 140px;
+    }
+    .aqi-gauge-value {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .aqi-number {
+      font-family: var(--font-mono);
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .aqi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+
+    .pollutant-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .pollutant-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .pollutant-name {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+    .pollutant-value {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+      margin: 2px 0;
+    }
+    .pollutant-unit { font-size: 10px; color: var(--text-muted); }
+
+    /* ─── CHARTS ─────────────────────────────────────────────────────── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 20px;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .chart-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .chart-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-family: var(--font-mono);
+    }
+    .chart-container { position: relative; height: 200px; }
+    .chart-container-lg { position: relative; height: 260px; }
+
+    /* ─── MAP ────────────────────────────────────────────────────────── */
+    .map-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .map-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #map { height: 480px; width: 100%; }
+
+    /* ─── TABLE ──────────────────────────────────────────────────────── */
+    .table-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .table-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--bg-secondary); }
+
+    .aqi-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* ─── DATE FILTER ────────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+    }
+    .filter-label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+    .filter-input {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      outline: none;
+      transition: var(--transition);
+    }
+    .filter-input:focus { border-color: var(--accent); }
+
+    /* ─── ALERTS ─────────────────────────────────────────────────────── */
+    .alert-item {
+      display: flex;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+    }
+    .alert-icon { font-size: 20px; flex-shrink: 0; }
+    .alert-content { flex: 1; }
+    .alert-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .alert-meta { font-size: 12px; color: var(--text-muted); }
+    .alert-aqi {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      flex-shrink: 0;
+      text-align: right;
+    }
+
+    /* ─── SEARCH RESULTS ─────────────────────────────────────────────── */
+    .search-results {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      z-index: 200;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+    .search-result-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: var(--transition);
+    }
+    .search-result-item:last-child { border-bottom: none; }
+    .search-result-item:hover { background: var(--bg-secondary); }
+    .search-result-name { font-size: 14px; font-weight: 500; }
+    .search-result-meta { font-size: 12px; color: var(--text-muted); }
+
+    /* ─── TOAST ──────────────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      animation: slideIn 0.3s ease;
+      min-width: 280px;
+      max-width: 380px;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .toast-icon { font-size: 20px; }
+    .toast-text { flex: 1; font-size: 14px; }
+
+    /* ─── LOADING ────────────────────────────────────────────────────── */
+    .loading-spinner {
+      width: 20px; height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-card-hover) 50%, var(--bg-secondary) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ─── TAB PANELS ─────────────────────────────────────────────────── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: flex; flex-direction: column; gap: 24px; }
+
+    /* ─── SECTION TITLE ──────────────────────────────────────────────── */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ─── AQI LEGEND ─────────────────────────────────────────────────── */
+    .aqi-legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────────────────── */
+    @media (max-width: 1100px) {
+      .main { grid-template-columns: 240px 1fr; }
+    }
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .charts-grid { grid-template-columns: 1fr; }
+      .city-detail-card { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 960px) {
+      /* Stack ranking tables on smaller screens */
+      div[style*="grid-template-columns:1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+      }
+    }
+    @media (max-width: 600px) {
+      .header-controls { display: none; }
+      .content { padding: 16px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Leaflet custom marker */
+    .leaflet-marker-icon.aqi-marker {
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 13px;
+      color: white;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Chart tooltip */
+    .chartjs-tooltip {
+      background: var(--bg-card) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 8px !important;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ─── HEADER ──────────────────────────────────────────────────────────────── -->
+<header class="header">
+  <a class="header-brand" href="#">
+    <div class="header-logo">🌍</div>
+    <div>
+      <div class="header-title">AIRWATCH</div>
+      <div class="header-subtitle">Pollution Monitor</div>
+    </div>
+  </a>
+
+  <div class="header-controls" style="position: relative;">
+    <div class="search-box">
+      <span>🔍</span>
+      <input type="text" id="citySearchInput" placeholder="Search city..." autocomplete="off" />
+    </div>
+    <button class="btn btn-primary" onclick="searchCity()">Add City</button>
+    <div id="searchResults" class="search-results" style="display:none;"></div>
+  </div>
+
+  <div class="header-actions">
+    <span class="status-dot" title="Live"></span>
+    <span class="refresh-timer" id="refreshTimer">Next: 30s</span>
+    <button class="btn btn-ghost btn-icon" onclick="manualRefresh()" title="Refresh now">↻</button>
+    <button class="btn btn-ghost btn-icon" onclick="toggleTheme()" title="Toggle theme" id="themeBtn">🌙</button>
+    <div class="btn-group" style="display:flex;gap:4px;align-items:center;">
+      <button class="btn btn-ghost" style="padding:6px 8px;font-size:11px;" onclick="setLanguage('uz')" title="Uzbek">O'Z</button>
+      <button class="btn btn-ghost" style="padding:6px 8px;font-size:11px;" onclick="setLanguage('en')" title="English">EN</button>
+      <button class="btn btn-ghost" style="padding:6px 8px;font-size:11px;" onclick="setLanguage('ru')" title="Русский">РУ</button>
+    </div>
+  </div>
+</header>
+
+<!-- ─── MAIN LAYOUT ──────────────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- SIDEBAR: City List -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Monitored Cities</div>
+      <div id="cityList">
+        <!-- Populated by JS -->
+        <div class="skeleton" style="height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton" style="height:56px;margin-bottom:8px;"></div>
+        <div class="skeleton" style="height:56px;"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">AQI Legend</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div class="legend-item"><div class="legend-dot" style="background:#00e400"></div>0–50 Good</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffff00"></div>51–100 Moderate</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff7e00"></div>101–150 Sensitive Groups</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff0000"></div>151–200 Unhealthy</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#8f3f97"></div>201–300 Very Unhealthy</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#7e0023"></div>301+ Hazardous</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <main class="content">
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('overview', this)">📊 Overview</button>
+      <button class="tab" onclick="switchTab('charts', this)">📈 Charts</button>
+      <button class="tab" onclick="switchTab('map', this)">🗺️ Map</button>
+      <button class="tab" onclick="switchTab('history', this)">📋 History</button>
+      <button class="tab" onclick="switchTab('alerts', this)">🔔 Alerts</button>
+    </div>
+
+    <!-- ─── OVERVIEW TAB ─────────────────────────────────────────────── -->
+    <div id="tab-overview" class="tab-panel active">
+
+      <!-- Stats -->
+      <div>
+        <div class="section-title" style="margin-bottom:16px;">Global Stats</div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-icon">🏙️</span>
+            <div class="stat-value" id="stat-cities">—</div>
+            <div class="stat-label">Cities Monitored</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">💨</span>
+            <div class="stat-value" id="stat-avg-aqi">—</div>
+            <div class="stat-label">Avg AQI</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">⚠️</span>
+            <div class="stat-value" id="stat-unhealthy">—</div>
+            <div class="stat-label">Unhealthy Cities</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">✅</span>
+            <div class="stat-value" id="stat-good">—</div>
+            <div class="stat-label">Good Air Quality</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selected City Detail -->
+      <div>
+        <div class="section-title" style="margin-bottom:16px;">City Detail</div>
+        <div id="cityDetailCard" class="city-detail-card">
+          <div class="aqi-gauge">
+            <canvas id="aqiGaugeChart"></canvas>
+            <div class="aqi-gauge-value">
+              <div class="aqi-number" id="detail-aqi">—</div>
+              <div class="aqi-label">AQI</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:22px;font-weight:700;margin-bottom:4px;" id="detail-city-name">Select a city</div>
+            <div style="font-size:14px;color:var(--text-muted);margin-bottom:16px;" id="detail-category">—</div>
+            <div class="pollutant-grid" id="pollutantGrid">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <div style="text-align:right;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">LAST UPDATED</div>
+            <div class="refresh-timer" id="detail-timestamp">—</div>
+            <button class="btn btn-ghost" style="margin-top:12px;width:100%;" id="fetchBtn" onclick="fetchCity()">
+              🔄 Fetch Now
+            </button>
+            <button class="btn btn-ghost" style="margin-top:8px;width:100%;" onclick="exportCSV()">
+              ⬇️ Export CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- City Rankings: Top 10 Best & Top 10 Worst -->
+      <div>
+        <div class="section-title" style="margin-bottom:16px;">Shaharlar Reytingi</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;" id="lastUpdateTime">—</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Top 10 Eng Toza -->
+          <div class="table-card">
+            <div class="table-header" style="background:rgba(0,228,0,0.06);">
+              <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;">
+                <span style="font-size:20px;">🟢</span> Top 10 — Eng Toza Havo
+              </div>
+              <div style="font-size:11px;color:var(--aqi-good);font-family:var(--font-mono);">LOW AQI</div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Shahar</th>
+                    <th>AQI</th>
+                    <th>Holat</th>
+                    <th>PM2.5</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="rankingBest">
+                  <tr><td colspan="6" class="no-data">Yuklanmoqda...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Top 10 Eng Iflos -->
+          <div class="table-card">
+            <div class="table-header" style="background:rgba(239,68,68,0.06);">
+              <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;">
+                <span style="font-size:20px;">🔴</span> Top 10 — Eng Iflos Havo
+              </div>
+              <div style="font-size:11px;color:var(--danger);font-family:var(--font-mono);">HIGH AQI</div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Shahar</th>
+                    <th>AQI</th>
+                    <th>Holat</th>
+                    <th>PM2.5</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="rankingWorst">
+                  <tr><td colspan="6" class="no-data">Yuklanmoqda...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── CHARTS TAB ────────────────────────────────────────────────── -->
+    <div id="tab-charts" class="tab-panel">
+
+      <div class="filter-bar">
+        <span class="filter-label">📅 Time Range:</span>
+        <select class="filter-input" id="chartDaysFilter" onchange="loadCharts()">
+          <option value="1">Last 24 hours</option>
+          <option value="3">Last 3 days</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <span class="filter-label">City:</span>
+        <select class="filter-input" id="chartCityFilter" onchange="loadCharts()">
+          <option value="">— Select city —</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadCharts()">Apply</button>
+      </div>
+
+      <!-- AQI Trend - Full Width -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">AQI Trend</div>
+          <div class="chart-badge" style="background:rgba(59,130,246,0.15);color:#3b82f6;">Air Quality Index</div>
+        </div>
+        <div class="chart-container-lg">
+          <canvas id="aqiTrendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Pollutant Charts Grid -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">PM2.5</div>
+            <div class="chart-badge" style="background:rgba(239,68,68,0.15);color:#ef4444;">μg/m³</div>
+          </div>
+          <div class="chart-container"><canvas id="pm25Chart"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">PM10</div>
+            <div class="chart-badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;">μg/m³</div>
+          </div>
+          <div class="chart-container"><canvas id="pm10Chart"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">CO — Carbon Monoxide</div>
+            <div class="chart-badge" style="background:rgba(16,185,129,0.15);color:#10b981;">μg/m³</div>
+          </div>
+          <div class="chart-container"><canvas id="coChart"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">NO₂ — Nitrogen Dioxide</div>
+            <div class="chart-badge" style="background:rgba(139,92,246,0.15);color:#8b5cf6;">μg/m³</div>
+          </div>
+          <div class="chart-container"><canvas id="no2Chart"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">SO₂ — Sulfur Dioxide</div>
+            <div class="chart-badge" style="background:rgba(236,72,153,0.15);color:#ec4899;">μg/m³</div>
+          </div>
+          <div class="chart-container"><canvas id="so2Chart"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">O₃ — Ozone</div>
+            <div class="chart-badge" style="background:rgba(20,184,166,0.15);color:#14b8a6;">μg/m³</div>
+          </div>
+          <div class="chart-container"><canvas id="o3Chart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── MAP TAB ──────────────────────────────────────────────────── -->
+    <div id="tab-map" class="tab-panel">
+      <div class="map-card">
+        <div class="map-header">
+          <div style="font-size:14px;font-weight:600;">🗺️ Uzbekistan Air Quality Map</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost" onclick="toggleHeatmap()" id="heatmapBtn">🌡️ Heatmap</button>
+            <button class="btn btn-ghost" onclick="fitMapBounds()">📐 Fit All</button>
+          </div>
+        </div>
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <!-- ─── HISTORY TAB ──────────────────────────────────────────────── -->
+    <div id="tab-history" class="tab-panel">
+      <div class="filter-bar">
+        <span class="filter-label">City:</span>
+        <select class="filter-input" id="historyCityFilter">
+          <option value="">— Select city —</option>
+        </select>
+        <span class="filter-label">From:</span>
+        <input type="date" class="filter-input" id="historyStart" />
+        <span class="filter-label">To:</span>
+        <input type="date" class="filter-input" id="historyEnd" />
+        <button class="btn btn-primary" onclick="loadHistory()">🔍 Search</button>
+        <button class="btn btn-ghost" onclick="exportHistoryCSV()">⬇️ CSV</button>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <div style="font-size:14px;font-weight:600;">Historical Records</div>
+          <div style="font-size:12px;color:var(--text-muted);" id="historyCount">—</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>AQI</th>
+                <th>Category</th>
+                <th>PM2.5</th>
+                <th>PM10</th>
+                <th>CO</th>
+                <th>NO2</th>
+                <th>SO2</th>
+                <th>O3</th>
+                <th>NH3</th>
+              </tr>
+            </thead>
+            <tbody id="historyTable">
+              <tr><td colspan="10" class="no-data">Select a city to view history</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── ALERTS TAB ────────────────────────────────────────────────── -->
+    <div id="tab-alerts" class="tab-panel">
+      <div style="display:flex;gap:12px;margin-bottom:4px;align-items:center;">
+        <div style="font-size:14px;font-weight:600;">Recent Alerts</div>
+        <span style="font-size:12px;color:var(--text-muted);" id="alertCount">—</span>
+      </div>
+      <div id="alertsList">
+        <div class="no-data">Loading alerts...</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ─── SCRIPTS ─────────────────────────────────────────────────────────────── -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// AIRWATCH DASHBOARD - Core Application with Multi-Language Support
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Multi-language support (3 languages: Uzbek, English, Russian)
+const LANGUAGES = {
+  uz: {
+    selectCity: "Shahar tanlang",
+    loading: "Yuklanmoqda...",
+    error: "Xatolik",
+    noData: "Ma'lumot topilmadi",
+    analytics: "Tahlillar",
+    avgAqi: "O'rtacha AQI",
+    maxAqi: "Maksimal AQI",
+    minAqi: "Minimal AQI",
+    records: "yozuv",
+    days: "kunlik tahlil",
+    chartDataNotFound: "uchun ma'lumot topilmadi",
+    cityDetail: "Shahar ma'lumotlari",
+    lastUpdated: "OXIRGI YANGILASH",
+    fetchNow: "Hozir olish",
+    exportCsv: "CSV yuklash",
+    timeRange: "Vaqt oralig'i",
+    applyFilter: "Qo'llash"
+  },
+  en: {
+    selectCity: "Select a city",
+    loading: "Loading...",
+    error: "Error",
+    noData: "No data found",
+    analytics: "Analytics",
+    avgAqi: "Average AQI",
+    maxAqi: "Maximum AQI",
+    minAqi: "Minimum AQI",
+    records: "records",
+    days: "day analysis",
+    chartDataNotFound: "no data available",
+    cityDetail: "City Details",
+    lastUpdated: "LAST UPDATED",
+    fetchNow: "Fetch Now",
+    exportCsv: "Export CSV",
+    timeRange: "Time Range",
+    applyFilter: "Apply"
+  },
+  ru: {
+    selectCity: "Выберите город",
+    loading: "Загрузка...",
+    error: "Ошибка",
+    noData: "Данные не найдены",
+    analytics: "Аналитика",
+    avgAqi: "Средний AQI",
+    maxAqi: "Максимальный AQI",
+    minAqi: "Минимальный AQI",
+    records: "записей",
+    days: "дневной анализ",
+    chartDataNotFound: "данные недоступны",
+    cityDetail: "Информация о городе",
+    lastUpdated: "ПОСЛЕДНЕЕ ОБНОВЛЕНИЕ",
+    fetchNow: "Обновить",
+    exportCsv: "Экспорт CSV",
+    timeRange: "Диапазон времени",
+    applyFilter: "Применить"
+  }
+};
+
+// Default language (detect from browser or default to Uzbek)
+let currentLanguage = localStorage.getItem('language') || 'uz';
+
+function t(key) {
+  return LANGUAGES[currentLanguage]?.[key] || LANGUAGES.uz[key] || key;
+}
+
+function setLanguage(lang) {
+  if (LANGUAGES[lang]) {
+    currentLanguage = lang;
+    localStorage.setItem('language', lang);
+    location.reload();
+  }
+}
+
+const API_BASE = '/api/v1';
+const REFRESH_INTERVAL = 30; // seconds
+
+let state = {
+  cities: [],
+  latestData: [],
+  selectedCityId: null,
+  charts: {},
+  map: null,
+  mapMarkers: [],
+  heatLayer: null,
+  heatmapActive: false,
+  refreshCountdown: REFRESH_INTERVAL,
+  refreshTimer: null,
+};
+
+// ─── AQI Color Helper ──────────────────────────────────────────────────────────
+function aqiColor(aqi) {
+  if (aqi <= 50)  return '#00e400';
+  if (aqi <= 100) return '#ffff00';
+  if (aqi <= 150) return '#ff7e00';
+  if (aqi <= 200) return '#ff0000';
+  if (aqi <= 300) return '#8f3f97';
+  return '#7e0023';
+}
+
+function aqiTextColor(aqi) {
+  if (aqi <= 100) return '#000';
+  return '#fff';
+}
+
+function aqiCategory(aqi) {
+  if (aqi <= 50)  return 'Good';
+  if (aqi <= 100) return 'Moderate';
+  if (aqi <= 150) return 'Unhealthy for Sensitive Groups';
+  if (aqi <= 200) return 'Unhealthy';
+  if (aqi <= 300) return 'Very Unhealthy';
+  return 'Hazardous';
+}
+
+function formatVal(v, decimals=1) {
+  return v != null ? Number(v).toFixed(decimals) : '—';
+}
+
+function formatTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// ─── API Helpers ───────────────────────────────────────────────────────────────
+async function apiFetch(path) {
+  try {
+    const r = await fetch(API_BASE + path);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch(e) {
+    console.error('API error:', path, e);
+    return null;
+  }
+}
+
+async function apiPost(path) {
+  try {
+    const r = await fetch(API_BASE + path, { method: 'POST' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch(e) {
+    console.error('API POST error:', path, e);
+    return null;
+  }
+}
+
+// ─── Toast Notifications ───────────────────────────────────────────────────────
+function showToast(icon, message, duration=3500) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${message}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(100%)';
+    toast.style.transition = '0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// ─── Theme Toggle ──────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.dataset.theme === 'dark';
+  html.dataset.theme = isDark ? 'light' : 'dark';
+  document.getElementById('themeBtn').textContent = isDark ? '☀️' : '🌙';
+  // Update chart colors
+  Object.values(state.charts).forEach(chart => {
+    if (chart && chart.options) {
+      chart.options.plugins.legend.labels.color = isDark ? '#8ba3cc' : '#334155';
+      chart.update();
+    }
+  });
+}
+
+// ─── Tab Switching ─────────────────────────────────────────────────────────────
+function switchTab(tabName, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tabName).classList.add('active');
+  btn.classList.add('active');
+
+  // Lazy load tab content — charts need a small delay for canvas to be visible
+  if (tabName === 'charts') {
+    requestAnimationFrame(() => setTimeout(() => loadCharts(), 50));
+  }
+  if (tabName === 'map') { initMap(); refreshMap(); }
+  if (tabName === 'alerts') loadAlerts();
+  if (tabName === 'history') populateCityFilters();
+}
+
+// ─── Load Latest Data ──────────────────────────────────────────────────────────
+async function loadLatestData() {
+  const data = await apiFetch('/air-quality/latest');
+  if (!data) return;
+
+  state.latestData = data;
+  state.cities = data.map(d => d.city);
+
+  renderCityList();
+  renderRankingsTable();
+  updateGlobalStats();
+  populateCityFilters();
+  updateLastUpdateTime();
+
+  // Select first city if none selected
+  if (!state.selectedCityId && data.length > 0 && data[0].latest) {
+    selectCity(data[0].city.id);
+  } else if (state.selectedCityId) {
+    renderCityDetail(state.selectedCityId);
+  }
+
+  // Refresh map markers if map is active
+  if (state.map) refreshMap();
+}
+
+function updateGlobalStats() {
+  const withData = state.latestData.filter(d => d.latest);
+  const aqis = withData.map(d => d.latest.aqi);
+
+  document.getElementById('stat-cities').textContent = state.latestData.length;
+  document.getElementById('stat-avg-aqi').textContent =
+    aqis.length ? Math.round(aqis.reduce((a,b)=>a+b,0)/aqis.length) : '—';
+  document.getElementById('stat-unhealthy').textContent =
+    aqis.filter(a => a > 100).length;
+  document.getElementById('stat-good').textContent =
+    aqis.filter(a => a <= 50).length;
+}
+
+function updateLastUpdateTime() {
+  document.getElementById('lastUpdateTime').textContent =
+    'Updated: ' + new Date().toLocaleTimeString();
+}
+
+// ─── City List Sidebar ─────────────────────────────────────────────────────────
+function renderCityList() {
+  const sorted = [...state.latestData].sort((a,b) => {
+    const aqiA = a.latest?.aqi ?? 0;
+    const aqiB = b.latest?.aqi ?? 0;
+    return aqiB - aqiA;
+  });
+
+  const html = sorted.map(d => {
+    const aqi = d.latest?.aqi ?? '?';
+    const color = d.latest ? aqiColor(aqi) : '#666';
+    const textColor = d.latest ? aqiTextColor(aqi) : '#fff';
+    const active = d.city.id === state.selectedCityId ? 'active' : '';
+    const cat = d.latest ? aqiCategory(aqi).split(' ').slice(0,2).join(' ') : 'No data';
+
+    return `
+      <div class="city-item ${active}" onclick="selectCity(${d.city.id})">
+        <div class="city-aqi-badge" style="background:${color};color:${textColor}">
+          ${aqi}
+        </div>
+        <div class="city-info">
+          <div class="city-name">${d.city.name}</div>
+          <div class="city-meta">${d.city.country} · ${cat}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('cityList').innerHTML = html || '<div class="no-data">No cities</div>';
+}
+
+// ─── Rankings Table — Top 10 Best & Top 10 Worst ──────────────────────────────
+function renderRankingsTable() {
+  const withData = [...state.latestData].filter(d => d.latest);
+
+  if (!withData.length) {
+    document.getElementById('rankingBest').innerHTML =
+      '<tr><td colspan="6" class="no-data">Ma\'lumot yo\'q</td></tr>';
+    document.getElementById('rankingWorst').innerHTML =
+      '<tr><td colspan="6" class="no-data">Ma\'lumot yo\'q</td></tr>';
+    return;
+  }
+
+  // Sort ascending for best (lowest AQI)
+  const best = [...withData].sort((a,b) => a.latest.aqi - b.latest.aqi).slice(0, 10);
+  // Sort descending for worst (highest AQI)
+  const worst = [...withData].sort((a,b) => b.latest.aqi - a.latest.aqi).slice(0, 10);
+
+  function renderRankRow(d, i, emoji) {
+    const r = d.latest;
+    const color = aqiColor(r.aqi);
+    return `
+      <tr onclick="selectCity(${d.city.id})" style="cursor:pointer;">
+        <td style="color:var(--text-muted);font-weight:700;">${emoji} ${i+1}</td>
+        <td style="font-weight:600">${d.city.name}</td>
+        <td>
+          <span class="aqi-pill" style="background:${color}22;color:${color}">
+            <span style="width:8px;height:8px;background:${color};border-radius:50%;display:inline-block"></span>
+            ${r.aqi}
+          </span>
+        </td>
+        <td style="color:${color};font-size:12px;white-space:nowrap;">${r.aqi_category}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.pm2_5)}</td>
+        <td>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;"
+            onclick="event.stopPropagation(); selectCity(${d.city.id}); switchTabByName('charts')">
+            📈
+          </button>
+        </td>
+      </tr>
+    `;
+  }
+
+  document.getElementById('rankingBest').innerHTML =
+    best.map((d, i) => renderRankRow(d, i, '🟢')).join('');
+  document.getElementById('rankingWorst').innerHTML =
+    worst.map((d, i) => renderRankRow(d, i, '🔴')).join('');
+}
+
+function switchTabByName(name) {
+  const tabs = document.querySelectorAll('.tab');
+  const names = ['overview','charts','map','history','alerts'];
+  const idx = names.indexOf(name);
+  if (idx >= 0) switchTab(name, tabs[idx]);
+}
+
+// ─── City Detail ───────────────────────────────────────────────────────────────
+function selectCity(cityId) {
+  state.selectedCityId = cityId;
+  renderCityList(); // update active state
+  renderCityDetail(cityId);
+
+  // Sync chart/history selects
+  const selects = ['chartCityFilter','historyCityFilter'];
+  selects.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = cityId;
+  });
+}
+
+function renderCityDetail(cityId) {
+  const data = state.latestData.find(d => d.city.id === cityId);
+  if (!data) return;
+
+  const city = data.city;
+  const r = data.latest;
+
+  document.getElementById('detail-city-name').textContent = `${city.name}, ${city.country}`;
+
+  if (!r) {
+    document.getElementById('detail-aqi').textContent = '—';
+    document.getElementById('detail-category').textContent = 'No data available';
+    return;
+  }
+
+  const color = aqiColor(r.aqi);
+  document.getElementById('detail-aqi').textContent = r.aqi;
+  document.getElementById('detail-aqi').style.color = color;
+  document.getElementById('detail-category').textContent = r.aqi_category;
+  document.getElementById('detail-category').style.color = color;
+  document.getElementById('detail-timestamp').textContent = formatTime(r.timestamp);
+
+  // Pollutant grid
+  const pollutants = [
+    { key: 'pm2_5',  label: 'PM2.5', val: r.pm2_5,  unit: 'μg/m³' },
+    { key: 'pm10',   label: 'PM10',  val: r.pm10,   unit: 'μg/m³' },
+    { key: 'co',     label: 'CO',    val: r.co,     unit: 'μg/m³' },
+    { key: 'no2',    label: 'NO₂',   val: r.no2,    unit: 'μg/m³' },
+    { key: 'so2',    label: 'SO₂',   val: r.so2,    unit: 'μg/m³' },
+    { key: 'o3',     label: 'O₃',    val: r.o3,     unit: 'μg/m³' },
+    { key: 'nh3',    label: 'NH₃',   val: r.nh3,    unit: 'μg/m³' },
+  ];
+
+  document.getElementById('pollutantGrid').innerHTML = pollutants.map(p => `
+    <div class="pollutant-item">
+      <div class="pollutant-name">${p.label}</div>
+      <div class="pollutant-value">${formatVal(p.val)}</div>
+      <div class="pollutant-unit">${p.unit}</div>
+    </div>
+  `).join('');
+
+  // AQI Gauge (doughnut)
+  renderGauge(r.aqi, color);
+}
+
+function renderGauge(aqi, color) {
+  const ctx = document.getElementById('aqiGaugeChart').getContext('2d');
+  if (state.charts.gauge) state.charts.gauge.destroy();
+
+  const maxAqi = 500;
+  const remaining = Math.max(0, maxAqi - aqi);
+
+  state.charts.gauge = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [aqi, remaining],
+        backgroundColor: [color, 'rgba(255,255,255,0.06)'],
+        borderWidth: 0,
+        borderRadius: [4, 0],
+      }]
+    },
+    options: {
+      rotation: -90,
+      circumference: 180,
+      cutout: '75%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      animation: { duration: 600, easing: 'easeOutCubic' }
+    }
+  });
+}
+
+// ─── Charts ────────────────────────────────────────────────────────────────────
+const CHART_COLORS = {
+  aqi:  '#3b82f6',
+  pm25: '#ef4444',
+  pm10: '#f59e0b',
+  co:   '#10b981',
+  no2:  '#8b5cf6',
+  so2:  '#ec4899',
+  o3:   '#14b8a6',
+};
+
+function makeChartConfig(label, color, records, key) {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  const gridColor = isDark ? 'rgba(99,179,237,0.08)' : 'rgba(0,0,0,0.08)';
+  const textColor = isDark ? '#8ba3cc' : '#334155';
+  const isSingle = records.length <= 3;
+
+  // For single/few data points, use bar chart for better visibility
+  const chartType = isSingle ? 'bar' : 'line';
+
+  const dataset = {
+    label,
+    data: records.map(r => r.v),
+    borderColor: color,
+    backgroundColor: isSingle ? color + '60' : color + '18',
+    borderWidth: 2,
+    tension: 0.4,
+    fill: !isSingle,
+  };
+
+  // Line-specific options
+  if (!isSingle) {
+    dataset.pointRadius = records.length > 50 ? 0 : 4;
+    dataset.pointBackgroundColor = color;
+    dataset.pointHoverRadius = 6;
+  } else {
+    dataset.borderRadius = 8;
+    dataset.barThickness = 40;
+  }
+
+  return {
+    type: chartType,
+    data: {
+      labels: records.map(r => formatTime(r.t)),
+      datasets: [dataset]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(13,19,29,0.95)',
+          titleColor: '#e8f0fe',
+          bodyColor: '#8ba3cc',
+          borderColor: 'rgba(99,179,237,0.2)',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            label: function(ctx) {
+              return `${label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) : '—'}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: { color: gridColor },
+          ticks: { color: textColor, maxTicksLimit: 8, font: { size: 11 } }
+        },
+        y: {
+          display: true,
+          grid: { color: gridColor },
+          ticks: { color: textColor, font: { size: 11 } },
+          beginAtZero: true
+        }
+      },
+      animation: {
+        duration: 800,
+        easing: 'easeOutCubic'
+      }
+    }
+  };
+}
+
+async function loadCharts() {
+  let cityId = document.getElementById('chartCityFilter').value;
+
+  // Auto-select: use selected city, or first available city
+  if (!cityId && state.selectedCityId) {
+    cityId = state.selectedCityId;
+    document.getElementById('chartCityFilter').value = cityId;
+  }
+  if (!cityId && state.cities.length > 0) {
+    cityId = state.cities[0].id;
+    document.getElementById('chartCityFilter').value = cityId;
+    selectCity(cityId);
+  }
+
+  if (!cityId) {
+    showToast('⚠️', t('selectCity'));
+    return;
+  }
+
+  const days = document.getElementById('chartDaysFilter').value || 7;
+
+  // Show loading state
+  const chartDefs = [
+    { id: 'aqiTrendChart', key: 'aqi',  label: 'AQI',      color: CHART_COLORS.aqi  },
+    { id: 'pm25Chart',     key: 'pm2_5',label: 'PM2.5',    color: CHART_COLORS.pm25 },
+    { id: 'pm10Chart',     key: 'pm10', label: 'PM10',     color: CHART_COLORS.pm10 },
+    { id: 'coChart',       key: 'co',   label: 'CO',       color: CHART_COLORS.co   },
+    { id: 'no2Chart',      key: 'no2',  label: 'NO₂',      color: CHART_COLORS.no2  },
+    { id: 'so2Chart',      key: 'so2',  label: 'SO₂',      color: CHART_COLORS.so2  },
+    { id: 'o3Chart',       key: 'o3',   label: 'O₃',       color: CHART_COLORS.o3   },
+  ];
+
+  const data = await apiFetch(`/air-quality/city/${cityId}/analytics?days=${days}`);
+
+  if (!data) {
+    showToast('❌', t('error') + ': ' + t('noData'));
+    return;
+  }
+
+  // Show analytics summary
+  const cityName = data.city?.name || '';
+  if (data.avg_aqi !== undefined) {
+    const summaryEl = document.querySelector('#tab-charts .chart-card .chart-badge');
+    if (summaryEl) {
+      summaryEl.textContent = `${cityName} · ${t('avgAqi')}: ${data.avg_aqi} · ${t('maxAqi')}: ${data.max_aqi} · ${t('minAqi')}: ${data.min_aqi}`;
+    }
+  }
+
+  const s = data.series || {};
+
+  chartDefs.forEach(def => {
+    const canvas = document.getElementById(def.id);
+    if (!canvas) return;
+
+    // Destroy previous chart
+    if (state.charts[def.id]) {
+      state.charts[def.id].destroy();
+      state.charts[def.id] = null;
+    }
+
+    const records = s[def.key] || [];
+
+    // Handle empty data — show message on canvas
+    if (!records || records.length === 0) {
+      const ctx = canvas.getContext('2d');
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = isDark ? '#4d6a99' : '#64748b';
+      ctx.font = '14px "DM Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${def.label} ${t('chartDataNotFound')}`, canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
+    // Filter out null values
+    const filtered = records.filter(r => r.v != null);
+    if (filtered.length === 0) return;
+
+    state.charts[def.id] = new Chart(canvas.getContext('2d'),
+      makeChartConfig(def.label, def.color, filtered, def.key));
+  });
+
+  if (data.total_records > 0) {
+    showToast('📈', `${cityName}: ${data.total_records} ${t('records')}, ${days} ${t('days')}`);
+  }
+}
+
+// ─── Map ────────────────────────────────────────────────────────────────────────
+function initMap() {
+  if (state.map) return;
+
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  const tileUrl = isDark
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
+  // Center on Uzbekistan
+  state.map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([41.3, 64.5], 6);
+  L.tileLayer(tileUrl, {
+    attribution: '© OpenStreetMap © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(state.map);
+}
+
+function refreshMap() {
+  if (!state.map) return;
+
+  // Clear existing markers
+  state.mapMarkers.forEach(m => state.map.removeLayer(m));
+  state.mapMarkers = [];
+
+  const heatData = [];
+
+  state.latestData.forEach(d => {
+    if (!d.latest) return;
+    const { latitude: lat, longitude: lng } = d.city;
+    const aqi = d.latest.aqi;
+    const color = aqiColor(aqi);
+
+    const icon = L.divIcon({
+      html: `<div style="
+        width:42px;height:42px;border-radius:50%;
+        background:${color};color:${aqiTextColor(aqi)};
+        border:3px solid rgba(255,255,255,0.8);
+        box-shadow:0 3px 14px rgba(0,0,0,0.5);
+        display:flex;align-items:center;justify-content:center;
+        font-weight:700;font-size:13px;font-family:monospace;
+        cursor:pointer;
+      ">${aqi}</div>`,
+      className: '',
+      iconSize: [42, 42],
+      iconAnchor: [21, 21],
+    });
+
+    const popup = `
+      <div style="font-family:'DM Sans',sans-serif;padding:6px;min-width:180px">
+        <strong style="font-size:15px">${d.city.name}</strong>
+        <div style="color:#666;font-size:12px;margin-bottom:8px">${d.city.country}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="width:44px;height:44px;background:${color};border-radius:8px;
+                      display:flex;align-items:center;justify-content:center;
+                      color:${aqiTextColor(aqi)};font-weight:700;font-size:18px">${aqi}</div>
+          <div>
+            <div style="font-weight:600">AQI</div>
+            <div style="font-size:12px;color:${color}">${d.latest.aqi_category}</div>
+          </div>
+        </div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <tr><td style="padding:2px 0;color:#666">PM2.5</td><td style="text-align:right;font-weight:500">${formatVal(d.latest.pm2_5)} μg/m³</td></tr>
+          <tr><td style="padding:2px 0;color:#666">PM10</td><td style="text-align:right;font-weight:500">${formatVal(d.latest.pm10)} μg/m³</td></tr>
+          <tr><td style="padding:2px 0;color:#666">NO₂</td><td style="text-align:right;font-weight:500">${formatVal(d.latest.no2)} μg/m³</td></tr>
+          <tr><td style="padding:2px 0;color:#666">SO₂</td><td style="text-align:right;font-weight:500">${formatVal(d.latest.so2)} μg/m³</td></tr>
+        </table>
+        <div style="font-size:11px;color:#999;margin-top:8px">${formatTime(d.latest.timestamp)}</div>
+      </div>
+    `;
+
+    const marker = L.marker([lat, lng], { icon })
+      .bindPopup(popup, { maxWidth: 240 })
+      .addTo(state.map);
+
+    marker.on('click', () => selectCity(d.city.id));
+    state.mapMarkers.push(marker);
+
+    // Heat data: [lat, lng, intensity]
+    heatData.push([lat, lng, Math.min(aqi / 300, 1)]);
+  });
+
+  // Update heatmap
+  if (state.heatLayer) {
+    state.map.removeLayer(state.heatLayer);
+    state.heatLayer = null;
+  }
+  if (state.heatmapActive && heatData.length > 0) {
+    state.heatLayer = L.heatLayer(heatData, {
+      radius: 50, blur: 30, maxZoom: 10,
+      gradient: {
+        0.2: '#00e400', 0.4: '#ffff00',
+        0.6: '#ff7e00', 0.8: '#ff0000', 1.0: '#7e0023'
+      }
+    }).addTo(state.map);
+  }
+}
+
+function toggleHeatmap() {
+  state.heatmapActive = !state.heatmapActive;
+  const btn = document.getElementById('heatmapBtn');
+  btn.style.background = state.heatmapActive ? 'var(--accent)' : '';
+  btn.style.color = state.heatmapActive ? 'white' : '';
+  refreshMap();
+}
+
+function fitMapBounds() {
+  if (!state.map || !state.latestData.length) return;
+  const points = state.latestData.map(d => [d.city.latitude, d.city.longitude]);
+  if (points.length) state.map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
+}
+
+// ─── History ───────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const cityId = document.getElementById('historyCityFilter').value;
+  if (!cityId) { showToast('⚠️', 'Please select a city first'); return; }
+
+  const start = document.getElementById('historyStart').value;
+  const end = document.getElementById('historyEnd').value;
+
+  let url = `/air-quality/city/${cityId}/history?limit=200`;
+  if (start) url += `&start_date=${start}T00:00:00`;
+  if (end)   url += `&end_date=${end}T23:59:59`;
+
+  const data = await apiFetch(url);
+  if (!data) return;
+
+  document.getElementById('historyCount').textContent = `${data.count} records`;
+
+  if (!data.records.length) {
+    document.getElementById('historyTable').innerHTML =
+      '<tr><td colspan="10" class="no-data">No records found for the selected period</td></tr>';
+    return;
+  }
+
+  const html = data.records.map(r => {
+    const color = aqiColor(r.aqi);
+    return `
+      <tr>
+        <td style="font-family:var(--font-mono);font-size:12px">${formatTime(r.timestamp)}</td>
+        <td>
+          <span class="aqi-pill" style="background:${color}22;color:${color}">
+            ${r.aqi}
+          </span>
+        </td>
+        <td style="font-size:12px;color:${color}">${r.aqi_category}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.pm2_5)}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.pm10)}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.co,0)}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.no2)}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.so2)}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.o3)}</td>
+        <td style="font-family:var(--font-mono)">${formatVal(r.nh3)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('historyTable').innerHTML = html;
+}
+
+// ─── Alerts ────────────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  const data = await apiFetch('/alerts/?limit=50');
+  if (!data) return;
+
+  document.getElementById('alertCount').textContent = `${data.count} alerts`;
+
+  if (!data.alerts.length) {
+    document.getElementById('alertsList').innerHTML =
+      '<div class="no-data">No alerts found. Alerts are sent when AQI exceeds threshold.</div>';
+    return;
+  }
+
+  const html = data.alerts.map(a => {
+    const icon = a.alert_type === 'critical' ? '🔴' : '🟠';
+    const channelIcon = a.channel === 'telegram' ? '✈️' : '📧';
+    const color = aqiColor(a.aqi_value);
+    return `
+      <div class="alert-item">
+        <div class="alert-icon">${icon}</div>
+        <div class="alert-content">
+          <div class="alert-title">${a.city_name} — ${a.alert_type.toUpperCase()}</div>
+          <div class="alert-meta">
+            ${channelIcon} ${a.channel.toUpperCase()} ·
+            ${a.is_sent ? '✅ Sent ' + formatTime(a.sent_at) : '❌ Failed'} ·
+            ${formatTime(a.created_at)}
+          </div>
+        </div>
+        <div class="alert-aqi" style="color:${color}">${a.aqi_value}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('alertsList').innerHTML = html;
+}
+
+// ─── City Search ───────────────────────────────────────────────────────────────
+let searchTimeout;
+document.getElementById('citySearchInput').addEventListener('input', (e) => {
+  clearTimeout(searchTimeout);
+  const q = e.target.value.trim();
+  if (q.length < 2) {
+    document.getElementById('searchResults').style.display = 'none';
+    return;
+  }
+  searchTimeout = setTimeout(() => performSearch(q), 500);
+});
+
+async function performSearch(q) {
+  const data = await apiFetch(`/cities/search/geocode?q=${encodeURIComponent(q)}`);
+  if (!data || !data.results) return;
+
+  const html = data.results.map(r => `
+    <div class="search-result-item" onclick="addCity('${r.name}', '${r.country}')">
+      <div class="search-result-name">${r.name}</div>
+      <div class="search-result-meta">${r.country} · ${r.latitude.toFixed(2)}, ${r.longitude.toFixed(2)}</div>
+    </div>
+  `).join('');
+
+  const resultsEl = document.getElementById('searchResults');
+  resultsEl.innerHTML = html || '<div class="no-data">No results</div>';
+  resultsEl.style.display = 'block';
+}
+
+async function searchCity() {
+  const q = document.getElementById('citySearchInput').value.trim();
+  if (q.length < 2) return;
+  await addCity(q);
+}
+
+async function addCity(name) {
+  showToast('⏳', `Adding ${name}...`);
+  document.getElementById('searchResults').style.display = 'none';
+  document.getElementById('citySearchInput').value = '';
+
+  const data = await fetch(`${API_BASE}/cities/search/add?q=${encodeURIComponent(name)}`, {
+    method: 'POST'
+  }).then(r => r.json()).catch(() => null);
+
+  if (data && data.city) {
+    showToast('✅', `${data.city.name} added! Fetching data...`);
+    await loadLatestData();
+  } else {
+    showToast('❌', `Could not find city: ${name}`);
+  }
+}
+
+// Close search on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.header-controls')) {
+    document.getElementById('searchResults').style.display = 'none';
+  }
+});
+
+// ─── Fetch & Export Actions ────────────────────────────────────────────────────
+async function fetchCity() {
+  if (!state.selectedCityId) return;
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching...';
+
+  const result = await apiPost(`/air-quality/city/${state.selectedCityId}/fetch`);
+  if (result) {
+    showToast('✅', `Data updated — AQI: ${result.data?.aqi}`);
+    await loadLatestData();
+  } else {
+    showToast('❌', 'Fetch failed. Check API key.');
+  }
+  btn.disabled = false;
+  btn.textContent = '🔄 Fetch Now';
+}
+
+function exportCSV() {
+  if (!state.selectedCityId) return;
+  window.open(`${API_BASE}/air-quality/city/${state.selectedCityId}/export/csv`, '_blank');
+}
+
+function exportHistoryCSV() {
+  const cityId = document.getElementById('historyCityFilter').value;
+  if (!cityId) { showToast('⚠️', 'Please select a city first'); return; }
+  const start = document.getElementById('historyStart').value;
+  const end = document.getElementById('historyEnd').value;
+  let url = `${API_BASE}/air-quality/city/${cityId}/export/csv`;
+  const params = [];
+  if (start) params.push(`start_date=${start}T00:00:00`);
+  if (end)   params.push(`end_date=${end}T23:59:59`);
+  if (params.length) url += '?' + params.join('&');
+  window.open(url, '_blank');
+}
+
+async function manualRefresh() {
+  showToast('🔄', 'Refreshing data...');
+  await loadLatestData();
+  state.refreshCountdown = REFRESH_INTERVAL;
+  showToast('✅', 'Data refreshed');
+}
+
+// ─── Populate City Filters ─────────────────────────────────────────────────────
+function populateCityFilters() {
+  const selects = ['chartCityFilter', 'historyCityFilter'];
+  selects.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const current = el.value;
+    el.innerHTML = '<option value="">— Select city —</option>' +
+      state.cities.map(c =>
+        `<option value="${c.id}" ${c.id == current ? 'selected' : ''}>${c.name}, ${c.country}</option>`
+      ).join('');
+    if (state.selectedCityId) el.value = state.selectedCityId;
+  });
+}
+
+// ─── Auto Refresh Timer ────────────────────────────────────────────────────────
+function startRefreshTimer() {
+  clearInterval(state.refreshTimer);
+  state.refreshTimer = setInterval(async () => {
+    state.refreshCountdown -= 1;
+    document.getElementById('refreshTimer').textContent = `Next: ${state.refreshCountdown}s`;
+
+    if (state.refreshCountdown <= 0) {
+      state.refreshCountdown = REFRESH_INTERVAL;
+      await loadLatestData();
+    }
+  }, 1000);
+}
+
+// ─── Set Default Date Range ────────────────────────────────────────────────────
+function setDefaultDates() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 7);
+
+  const fmt = d => d.toISOString().split('T')[0];
+  document.getElementById('historyStart').value = fmt(start);
+  document.getElementById('historyEnd').value = fmt(end);
+}
+
+// ─── Bootstrap ─────────────────────────────────────────────────────────────────
+async function init() {
+  setDefaultDates();
+  await loadLatestData();
+  startRefreshTimer();
+  showToast('🌍', 'AirWatch loaded. Data auto-refreshes every 30s.');
+}
+
+init();
+</script>
+</body>
+</html>

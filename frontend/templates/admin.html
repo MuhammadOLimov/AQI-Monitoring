@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>AirWatch Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0e1a; --bg2: #0f1629; --card: #131d35;
+      --border: rgba(99,179,237,0.12); --text: #e8f0fe;
+      --muted: #8ba3cc; --accent: #3b82f6; --success: #10b981;
+      --danger: #ef4444; --warning: #f59e0b;
+      --font-mono: 'Space Mono', monospace;
+      --font: 'DM Sans', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); }
+
+    .admin-header {
+      background: #0f1629;
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .admin-title { font-family: var(--font-mono); font-size: 18px; }
+    .admin-back { color: var(--accent); text-decoration: none; font-size: 14px; }
+
+    .admin-body { max-width: 1100px; margin: 32px auto; padding: 0 24px; display: flex; flex-direction: column; gap: 28px; }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-title { font-size: 15px; font-weight: 600; }
+    .panel-body { padding: 24px; }
+
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .form-input {
+      background: #0f1629; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; color: var(--text);
+      font-family: var(--font); font-size: 14px; outline: none;
+      transition: 0.2s;
+    }
+    .form-input:focus { border-color: var(--accent); }
+
+    .btn { padding: 10px 20px; border-radius: 9px; border: none; cursor: pointer; font-family: var(--font); font-size: 14px; font-weight: 500; transition: 0.2s; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-danger  { background: var(--danger); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-ghost   { background: #0f1629; color: var(--muted); border: 1px solid var(--border); }
+    .btn:hover   { opacity: 0.85; transform: translateY(-1px); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); background: #0f1629; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--muted); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(59,130,246,0.04); }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-green  { background: rgba(16,185,129,0.15); color: #10b981; }
+    .badge-red    { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .badge-yellow { background: rgba(245,158,11,0.15); color: #f59e0b; }
+
+    .stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+    .stat-box { background: #0f1629; border: 1px solid var(--border); border-radius: 12px; padding: 18px; text-align: center; }
+    .stat-num { font-family: var(--font-mono); font-size: 32px; font-weight: 700; color: var(--accent); }
+    .stat-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+    .log-box { background: #060a12; border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-family: var(--font-mono); font-size: 12px; color: #7aff8e; height: 200px; overflow-y: auto; white-space: pre-wrap; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; font-size: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 999; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+<div class="admin-header">
+  <span class="admin-title">⚙️ AIRWATCH ADMIN</span>
+  <a class="admin-back" href="/dashboard">← Back to Dashboard</a>
+</div>
+
+<div class="admin-body">
+
+  <!-- System Stats -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">📊 System Overview</span>
+      <button class="btn btn-ghost" onclick="loadStats()">↻ Refresh</button>
+    </div>
+    <div class="panel-body">
+      <div class="stat-row" id="adminStats">
+        <div class="stat-box"><div class="stat-num" id="sCities">—</div><div class="stat-lbl">Cities</div></div>
+        <div class="stat-box"><div class="stat-num" id="sRecords">—</div><div class="stat-lbl">Records</div></div>
+        <div class="stat-box"><div class="stat-num" id="sAlerts">—</div><div class="stat-lbl">Alerts Sent</div></div>
+        <div class="stat-box"><div class="stat-num" id="sHealth" style="color:#10b981">OK</div><div class="stat-lbl">DB Status</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- City Management -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">🏙️ City Management</span>
+      <button class="btn btn-primary" onclick="showAddCity()">+ Add City</button>
+    </div>
+    <div class="panel-body" id="addCityForm" style="display:none;margin-bottom:20px;">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">City Name</label>
+          <input class="form-input" id="newCityName" placeholder="e.g. Tashkent" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Country</label>
+          <input class="form-input" id="newCityCountry" placeholder="Uzbekistan" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Country Code</label>
+          <input class="form-input" id="newCityCode" placeholder="UZ" maxlength="3" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Latitude</label>
+          <input class="form-input" id="newCityLat" type="number" step="0.0001" placeholder="41.2995" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Longitude</label>
+          <input class="form-input" id="newCityLng" type="number" step="0.0001" placeholder="69.2401" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Timezone</label>
+          <input class="form-input" id="newCityTz" placeholder="Asia/Tashkent" />
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn btn-success" onclick="addCity()">✅ Save City</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('addCityForm').style.display='none'">Cancel</button>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>City</th><th>Country</th><th>Lat</th><th>Lng</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="citiesTableBody">
+        <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Data Operations -->
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">⚡ Data Operations</span></div>
+    <div class="panel-body" style="display:flex;gap:12px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="fetchAll()">🔄 Fetch All Cities Now</button>
+      <button class="btn btn-success" onclick="checkHealth()">💚 Check API Health</button>
+      <button class="btn btn-ghost" onclick="loadLog()">📋 View Logs</button>
+    </div>
+  </div>
+
+  <!-- Recent Alerts -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">🔔 Recent Alerts</span>
+      <button class="btn btn-ghost" onclick="loadAlerts()">↻ Refresh</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>City</th><th>Type</th><th>Channel</th><th>AQI</th><th>Sent</th><th>Time</th></tr>
+      </thead>
+      <tbody id="alertsTableBody">
+        <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Log viewer -->
+  <div class="panel" id="logPanel" style="display:none">
+    <div class="panel-header"><span class="panel-title">📋 Application Log</span></div>
+    <div class="panel-body">
+      <div class="log-box" id="logContent">Loading logs...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '/api/v1';
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+async function get(url) {
+  const r = await fetch(API + url);
+  return r.ok ? r.json() : null;
+}
+
+async function post(url, body) {
+  const r = await fetch(API + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return r.ok ? r.json() : null;
+}
+
+async function del(url) {
+  const r = await fetch(API + url, { method: 'DELETE' });
+  return r.ok ? r.json() : null;
+}
+
+async function loadStats() {
+  const [health, cities, alerts] = await Promise.all([
+    fetch('/health').then(r=>r.json()).catch(()=>null),
+    get('/cities/'),
+    get('/alerts/?limit=1'),
+  ]);
+  document.getElementById('sCities').textContent = cities?.length ?? '—';
+  document.getElementById('sAlerts').textContent = alerts?.count ?? '—';
+  document.getElementById('sHealth').textContent = health?.database === 'connected' ? 'OK' : 'ERR';
+  document.getElementById('sHealth').style.color = health?.database === 'connected' ? '#10b981' : '#ef4444';
+}
+
+async function loadCities() {
+  const cities = await get('/cities/?active_only=false');
+  if (!cities) return;
+  const html = cities.map(c => `
+    <tr>
+      <td style="font-family:monospace">${c.id}</td>
+      <td style="font-weight:600;color:#e8f0fe">${c.name}</td>
+      <td>${c.country}</td>
+      <td style="font-family:monospace">${c.latitude.toFixed(4)}</td>
+      <td style="font-family:monospace">${c.longitude.toFixed(4)}</td>
+      <td>
+        <span class="badge ${c.is_active ? 'badge-green' : 'badge-red'}">
+          ${c.is_active ? 'Active' : 'Inactive'}
+        </span>
+      </td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px"
+          onclick="fetchCity(${c.id})">Fetch</button>
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:12px"
+          onclick="deleteCity(${c.id}, '${c.name}')">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('citiesTableBody').innerHTML = html || '<tr><td colspan="7" style="text-align:center;padding:20px">No cities</td></tr>';
+}
+
+async function loadAlerts() {
+  const data = await get('/alerts/?limit=20');
+  if (!data) return;
+  const html = data.alerts.map(a => {
+    const typeClass = a.alert_type === 'critical' ? 'badge-red' : 'badge-yellow';
+    const sentClass = a.is_sent ? 'badge-green' : 'badge-red';
+    return `
+      <tr>
+        <td style="font-weight:500;color:#e8f0fe">${a.city_name}</td>
+        <td><span class="badge ${typeClass}">${a.alert_type}</span></td>
+        <td>${a.channel}</td>
+        <td style="font-family:monospace;font-weight:700;color:#ef4444">${a.aqi_value}</td>
+        <td><span class="badge ${sentClass}">${a.is_sent ? 'Sent' : 'Failed'}</span></td>
+        <td style="font-size:12px;color:var(--muted)">${new Date(a.created_at).toLocaleString()}</td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('alertsTableBody').innerHTML = html || '<tr><td colspan="6" style="text-align:center;padding:20px">No alerts</td></tr>';
+}
+
+function showAddCity() {
+  const f = document.getElementById('addCityForm');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function addCity() {
+  const data = {
+    name: document.getElementById('newCityName').value.trim(),
+    country: document.getElementById('newCityCountry').value.trim(),
+    country_code: document.getElementById('newCityCode').value.trim().toUpperCase(),
+    latitude: parseFloat(document.getElementById('newCityLat').value),
+    longitude: parseFloat(document.getElementById('newCityLng').value),
+    timezone: document.getElementById('newCityTz').value.trim() || 'UTC',
+  };
+  if (!data.name || !data.country || !data.latitude || !data.longitude) {
+    toast('⚠️ Fill in all required fields');
+    return;
+  }
+  const result = await post('/cities/', data);
+  if (result) {
+    toast(`✅ City "${result.name}" created`);
+    document.getElementById('addCityForm').style.display = 'none';
+    loadCities();
+  } else {
+    toast('❌ Failed to create city');
+  }
+}
+
+async function deleteCity(id, name) {
+  if (!confirm(`Delete "${name}" and ALL its data? This cannot be undone.`)) return;
+  const result = await del(`/cities/${id}`);
+  if (result) { toast(`🗑️ City "${name}" deleted`); loadCities(); }
+  else toast('❌ Delete failed');
+}
+
+async function fetchCity(id) {
+  toast('⏳ Fetching data...');
+  const result = await post(`/air-quality/city/${id}/fetch`);
+  toast(result ? `✅ AQI: ${result.data?.aqi} (${result.data?.category})` : '❌ Fetch failed');
+}
+
+async function fetchAll() {
+  toast('⏳ Fetching all cities...');
+  const result = await post('/air-quality/fetch-all');
+  toast(result ? `✅ Updated ${result.data?.updated} cities` : '❌ Fetch failed');
+}
+
+async function checkHealth() {
+  const h = await fetch('/health').then(r=>r.json()).catch(()=>null);
+  if (h) toast(`✅ DB: ${h.database} | API Key: ${h.api_key_configured ? 'Set' : 'Missing'}`);
+  else toast('❌ Health check failed');
+}
+
+function loadLog() {
+  const panel = document.getElementById('logPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('logContent').textContent =
+    '[INFO] Application started\n[INFO] Database connected\n[INFO] Scheduler running\n' +
+    '(Full logs available in /app/logs/app.log)';
+}
+
+// Initialize
+loadStats();
+loadCities();
+loadAlerts();
+</script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.venv/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Docker
+docker/ssl/
+
+# Test coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Alembic auto-generated (keep versions/)
+# database/versions/*.py  <- keep these
+
+# Node
+node_modules/
+npm-debug.log
+
+# Backups
+*.sql.gz
+backups/
