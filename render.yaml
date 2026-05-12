@@ -26,7 +26,7 @@ services:
           name: airwatch-redis
           property: connectionString
       - key: OPENWEATHER_API_KEY
-        sync: false # Buni Render dashboardida qo'lda kiritasiz
+        sync: false
       - key: SECRET_KEY
         generateValue: true
 

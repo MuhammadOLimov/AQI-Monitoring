@@ -15,13 +15,24 @@ from loguru import logger
 from backend.core.config import settings
 
 
+# Database host logging for debugging
+db_host = settings.DATABASE_URL.split("@")[-1].split(":")[0].split("/")[0]
+logger.info(f"Connecting to database at: {db_host}")
+
 # Async engine for all application queries
+# We add ssl='require' support for cloud providers like Render
+connect_args = {}
+if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
+    # Most cloud providers require SSL
+    connect_args["ssl"] = "require"
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_pre_ping=True,
     echo=settings.DEBUG,
+    connect_args=connect_args,
 )
 
 # Session factory

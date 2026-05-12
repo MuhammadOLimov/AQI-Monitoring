@@ -37,8 +37,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Environment: {settings.APP_ENV}")
 
     # Create database tables with retries (for cloud environments)
-    max_retries = 5
-    retry_delay = 5
+    max_retries = 10
+    retry_delay = 3
+    
+    # Debug: log current DB host (masked)
+    db_parts = settings.DATABASE_URL.split("@")
+    if len(db_parts) > 1:
+        masked_url = f"postgresql+asyncpg://****:****@{db_parts[1]}"
+        logger.info(f"Target Database: {masked_url}")
+    else:
+        logger.warning("DATABASE_URL format is unusual")
+
     for i in range(max_retries):
         try:
             await create_tables()
@@ -48,7 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             if i == max_retries - 1:
                 logger.error(f"Failed to initialize database after {max_retries} attempts: {e}")
                 raise
-            logger.warning(f"Database connection attempt {i+1} failed. Retrying in {retry_delay}s... ({e})")
+            logger.warning(f"Database connection attempt {i+1}/{max_retries} failed. Retrying in {retry_delay}s... ({e})")
             await asyncio.sleep(retry_delay)
 
     # Cleanup non-Uzbekistan cities and seed defaults
