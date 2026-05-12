@@ -36,51 +36,43 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Environment: {settings.APP_ENV}")
 
-    # Create database tables with retries (for cloud environments)
+    # Create database tables (Non-fatal startup)
     max_retries = 10
-    retry_delay = 3
+    retry_delay = 5
+    db_initialized = False
     
     # Debug: log current DB host (masked)
-    db_parts = settings.DATABASE_URL.split("@")
-    if len(db_parts) > 1:
-        masked_url = f"postgresql+asyncpg://****:****@{db_parts[1]}"
-        logger.info(f"Target Database: {masked_url}")
+    db_url = settings.DATABASE_URL
+    if "@" in db_url:
+        host_part = db_url.split("@")[-1]
+        logger.info(f"Target Database Host: {host_part}")
     else:
-        logger.warning("DATABASE_URL format is unusual")
+        logger.warning(f"DATABASE_URL format is unusual: {db_url[:15]}...")
 
-    for i in range(max_retries):
-        try:
-            await create_tables()
-            logger.info("Database initialized successfully")
-            break
-        except Exception as e:
-            if i == max_retries - 1:
-                logger.error(f"Failed to initialize database after {max_retries} attempts: {e}")
-                raise
-            logger.warning(f"Database connection attempt {i+1}/{max_retries} failed. Retrying in {retry_delay}s... ({e})")
-            await asyncio.sleep(retry_delay)
+    async def init_db_task():
+        nonlocal db_initialized
+        for i in range(max_retries):
+            try:
+                await create_tables()
+                async with AsyncSessionLocal() as db:
+                    # Cleanup and seed
+                    await city_service.cleanup_non_uz_cities(db)
+                    await city_service.cleanup_duplicate_cities(db)
+                    await city_service.ensure_default_cities(db)
+                    await db.commit()
+                
+                logger.info("Database initialized and seeded successfully")
+                db_initialized = True
+                break
+            except Exception as e:
+                logger.warning(f"DB Init attempt {i+1}/{max_retries} failed: {e}")
+                if i < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                else:
+                    logger.error("Database initialization failed after all retries. App will run in degraded mode.")
 
-    # Cleanup non-Uzbekistan cities and seed defaults
-    async with AsyncSessionLocal() as db:
-        try:
-            # Remove any non-Uzbekistan cities from previous configurations
-            cleaned = await city_service.cleanup_non_uz_cities(db)
-            if cleaned > 0:
-                await db.commit()
-                logger.info(f"Removed {cleaned} non-Uzbekistan cities")
-
-            # Remove duplicate cities
-            dupes = await city_service.cleanup_duplicate_cities(db)
-            if dupes > 0:
-                await db.commit()
-                logger.info(f"Removed {dupes} duplicate cities")
-
-            await city_service.ensure_default_cities(db)
-            await db.commit()
-            logger.info("Default Uzbekistan cities seeded")
-        except Exception as e:
-            await db.rollback()
-            logger.warning(f"City seeding skipped: {e}")
+    # Start DB initialization as a background task to not block server boot
+    asyncio.create_task(init_db_task())
 
     # Start background scheduler
     scheduler = create_scheduler()

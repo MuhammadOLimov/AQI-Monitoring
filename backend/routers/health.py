@@ -10,9 +10,11 @@ router = APIRouter(tags=["Health"])
 
 
 @router.get("/health")
-async def health_check(db: AsyncSession = Depends(get_db)):
+async def health_check():
     """System health check."""
     db_ok = await check_db_connection()
+    # Return 200 OK even if DB is down to prevent container restart loops
+    # but include the actual status in the body
     return {
         "status": "healthy" if db_ok else "degraded",
         "app": settings.APP_NAME,
