@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
 
   # ─── PostgreSQL Database ────────────────────────────────────────────────────
@@ -102,5 +100,4 @@ volumes:
 
 networks:
   airwatch_net:
-    name: airwatch_network
     driver: bridge
